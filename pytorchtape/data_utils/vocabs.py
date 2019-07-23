@@ -29,6 +29,13 @@ PFAM_VOCAB = {
     'Y': 27,
     'Z': 28}
 
+# Special tokens (my own)
+n_vocab = len(PFAM_VOCAB) + 2
+pad_idx = PFAM_VOCAB['<PAD>']
+start_idx = 29
+stop_idx = 30
+
+
 AA_DICT = {
     'X': -1,  # unknown
     'A': 0,
