@@ -8,12 +8,12 @@ Created on Tue Jul 16 12:53:02 2019
 import tensorflow as tf
 tf.enable_eager_execution()
 
-from data_utils.fluorescence_protein_serializer import deserialize_fluorescence_sequence as _deserialize_fluorescence_sequence
-from data_utils.proteinnet_serializer import deserialize_proteinnet_sequence as _deserialize_proteinnet_sequence
-from data_utils.remote_homology_serializer import deserialize_remote_homology_sequence as _deserialize_remote_homology_sequence
-from data_utils.secondary_structure_protein_serializer import deserialize_secondary_structure as _deserialize_secondary_structure
-from data_utils.stability_serializer import deserialize_stability_sequence as _deserialize_stability_sequence
-from data_utils.pfam_protein_serializer import deserialize_pfam_sequence as _deserialize_pfam_sequence
+from .data_utils.fluorescence_protein_serializer import deserialize_fluorescence_sequence as _deserialize_fluorescence_sequence
+from .data_utils.proteinnet_serializer import deserialize_proteinnet_sequence as _deserialize_proteinnet_sequence
+from .data_utils.remote_homology_serializer import deserialize_remote_homology_sequence as _deserialize_remote_homology_sequence
+from .data_utils.secondary_structure_protein_serializer import deserialize_secondary_structure as _deserialize_secondary_structure
+from .data_utils.stability_serializer import deserialize_stability_sequence as _deserialize_stability_sequence
+from .data_utils.pfam_protein_serializer import deserialize_pfam_sequence as _deserialize_pfam_sequence
 
 import numpy as np
 import os
@@ -47,10 +47,6 @@ class TFrecordToTorch(object):
             self.tfrecord = tf.data.TFRecordDataset(recordfile[0])
             for i in range(1, len(recordfile)):
                 self.tfrecord = self.tfrecord.concatenate(tf.data.TFRecordDataset(recordfile[i]))
-        
-        for i, d in enumerate(self.tfrecord):
-            pass
-        print('number of samples', i)
         
         # Get number of batches
         self.dataset = self.tfrecord.batch(self.batch_size)
@@ -117,7 +113,7 @@ class TFrecordToTorch(object):
     
 #%%         
 class Dataset(object):
-    def __init__(self, batch_size=100, shuffle=True, pad_and_stack=True):
+    def __init__(self, batch_size=100, shuffle=True, pad_and_stack=False):
         # Files to read from 
         files = os.listdir(self.folder)
         self.train_files = [self.folder + '/' + f for f in files if 'train' in f]
@@ -186,8 +182,8 @@ class StabilityDataset(Dataset):
 #%%
 class PfamDataset(Dataset):
     folder = 'data/pfam'
-    _train_N = 0
-    _val_N = 0
+    _train_N = 32593667
+    _val_N = 1715454
     _test_N = 0
 
 #%%
@@ -201,7 +197,7 @@ if __name__ == '__main__':
                    ]:
         print(classe)
         c = classe()
-        s1 = c.train_set
-        s2 = c.val_set
+        #s1 = c.train_set
+        #s2 = c.val_set
         s3 = c.test_set
 
