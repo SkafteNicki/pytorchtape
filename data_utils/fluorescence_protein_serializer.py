@@ -154,7 +154,7 @@ def deserialize_fluorescence_sequence(example):
     protein_length = tf.cast(context['protein_length'][0], tf.int32)
     log_fluorescence = context['log_fluorescence']
     num_mutations = tf.cast(context['num_mutations'][0], tf.int32)
-    sequence = tf.to_int32(features['primary'][:, 0])
+    sequence = tf.cast(features['primary'][:, 0], tf.int32)
 
     return {'primary': sequence,
             'protein_length': protein_length,
