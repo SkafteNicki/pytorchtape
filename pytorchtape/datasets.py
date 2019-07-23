@@ -29,11 +29,13 @@ _deserie_funcs = {'fluorescence':        _deserialize_fluorescence_sequence,
 
 #%%
 class TFrecordToTorch(object):
-    def __init__(self, recordfile, deserie_func, batch_size = 100, shuffle=True, pad_and_stack=True):
+    def __init__(self, recordfile, deserie_func, data_size, 
+                 batch_size = 100, shuffle=True, pad_and_stack=True):
         # Set variables
         self.shuffle = shuffle
         self.batch_size = batch_size
         self.pad_and_stack = pad_and_stack
+        self.N = data_size
         
         # Deserilization function
         self.deserie_func = deserie_func
@@ -46,16 +48,13 @@ class TFrecordToTorch(object):
             for i in range(1, len(recordfile)):
                 self.tfrecord = self.tfrecord.concatenate(tf.data.TFRecordDataset(recordfile[i]))
         
-        # Get size of dataset
-        for i,dd in enumerate(self.tfrecord):
+        for i, d in enumerate(self.tfrecord):
             pass
-        self.N = i
+        print('number of samples', i)
         
         # Get number of batches
         self.dataset = self.tfrecord.batch(self.batch_size)
-        for i,d in enumerate(self.dataset):
-            pass
-        self.n_batch = i
+        self.n_batch = np.ceil(self.N / self.batch_size)
         
     def _deserialize(self, batch) -> list:
         return list(map(self.deserie_func, batch))
@@ -136,61 +135,73 @@ class Dataset(object):
         
     @property
     def train_set(self):
-        return TFrecordToTorch(self.train_files, self.deserie_func, 
+        return TFrecordToTorch(self.train_files, self.deserie_func, self._train_N,
                                self.batch_size, self.shuffle, self.pad_and_stack)
     
     @property
     def val_set(self):
-        return TFrecordToTorch(self.train_files, self.deserie_func, 
+        return TFrecordToTorch(self.val_files, self.deserie_func, self._val_N,
                                self.batch_size, False, self.pad_and_stack)
     
     @property
     def test_set(self):
-        return TFrecordToTorch(self.train_files, self.deserie_func, 
+        return TFrecordToTorch(self.test_files, self.deserie_func, self._test_N,
                                self.batch_size, False, self.pad_and_stack)
 
 #%%
 class FluorescenceDataset(Dataset):
     folder = 'data/fluorescence'
+    _train_N = 21445
+    _val_N = 5361
+    _test_N = 54024
     
 #%%
 class ProteinnetDataset(Dataset):
     folder = 'data/proteinnet'
+    _train_N = 25298
+    _val_N = 223
+    _test_N = 25562
     
 #%%
 class RemotehomologyDataset(Dataset):
     folder = 'data/remote_homology'
+    _train_N = 12311
+    _val_N = 735
+    _test_N = 16291
 
 #%%
 class SecondarystructureDataset(Dataset):
     folder = 'data/secondary_structure'
+    _train_N = 8677 
+    _val_N = 2169
+    _test_N = 11496
 
 #%%
 class StabilityDataset(Dataset):
     folder = 'data/stability'
+    _train_N = 53613
+    _val_N = 2511
+    _test_N = 68976
     
 #%%
 class PfamDataset(Dataset):
     folder = 'data/pfam'
+    _train_N = 0
+    _val_N = 0
+    _test_N = 0
 
 #%%
 if __name__ == '__main__':
-    dataset = ProteinnetDataset(batch_size=10, shuffle=True, pad_and_stack=False)
-    train = dataset.train_set
-    val = dataset.val_set
-    test = dataset.test_set
-    
-    for i, dd in enumerate(train):
-        print(i)
-        if i > 10:
-            break
-        
-    for i, dd in enumerate(val):
-        print(i)
-        if i > 10:
-            break
-        
-    for i, dd in enumerate(test):
-        print(i)
-        if i > 10:
-            break
+    for classe in [#FluorescenceDataset,
+                   #ProteinnetDataset,
+                   #RemotehomologyDataset,
+                   #SecondarystructureDataset,
+                   #StabilityDataset,
+                   PfamDataset
+                   ]:
+        print(classe)
+        c = classe()
+        s1 = c.train_set
+        s2 = c.val_set
+        s3 = c.test_set
+
