@@ -26,13 +26,15 @@ class BaseVAE(nn.Module):
         ''' z.shape = [n_sample, batch_size, latent_size] '''
         raise NotImplementedError
     
-    def __init__(self, max_seq_len, latent_size, device='cpu'):
+    def __init__(self, latent_size, max_seq_len, warmup_iters, device='cpu'):
         self.max_seq_len = max_seq_len
         self.latent_size = latent_size
         self.device = torch.device(device)
         self.emb_f = lambda x: F.one_hot(x.long(), num_classes=n_vocab).float()
         self.prior = D.Independent(D.Normal(torch.zeros(1,latent_size,device=self.device),
                                             torch.ones(1,latent_size,device=self.device)), 1)
+        self.warmup_iters = warmup_iters
+        self.beta = 0
         
         # Initialize parameters
         super().__init__()
@@ -55,11 +57,13 @@ class BaseVAE(nn.Module):
         p_dist = D.Categorical(logits=x_mu)
         
         # Calculate loss
+        self.beta += 1.0/self.warmup_iters if self.training else 0 
+        self.beta = np.minimum(1,self.beta)
         target = data['target']
         logpx = p_dist.log_prob(target) # [N,B,L]
         logpx[:,target==pad_idx]=0 # mask padding indices
         kl = D.kl_divergence(q_dist, self.prior)
-        iw_elbo = logpx.sum(dim=-1) - data['beta']*kl # [N,B,L] -> [N,B] 
+        iw_elbo = logpx.sum(dim=-1) - self.beta*kl # [N,B,L] -> [N,B] 
         elbo = iw_elbo.logsumexp(dim=0) - np.log(logpx.shape[0])# [N,B] -> [B]
         
         # Calculate ete
@@ -85,7 +89,8 @@ class BaseVAE(nn.Module):
                    'kl': kl.mean(),
                    'acc': acc,
                    'ece': ece,
-                   'perplexity': perplexity}
+                   'perplexity': perplexity,
+                   'z_std': z_std.mean()}
         
         return metrics['loss'], metrics
     
@@ -98,7 +103,7 @@ class BaseVAE(nn.Module):
             x_mu = self.decoder(z)
             return x_mu.argmax(dim=-1)
     
-    def latent_rep(self, x):
+    def embedding(self, x):
         with torch.no_grad():
             x_onehot = self.emb_f(x)
             return self.encoder(x_onehot)[0]
