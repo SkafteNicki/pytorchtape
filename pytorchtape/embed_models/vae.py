@@ -15,34 +15,14 @@ from ..data_utils.vocabs import n_vocab, pad_idx
 
 #%%
 class BaseVAE(nn.Module):
-    ''' Base class for vae model. Subclass all models with this class.
-    
-    Only need is to implement the following 3 methods:
-        @_init_enc_dec_funcs(self):
-            Initialize all parameterized functions here
-        @encoder(self, x)
-            Encoder of the vae. x has shape [batch_size, length, n_vocab].
-            Should return both z_mu, z_var with shape [batch_size, latent_size]
-        @decoder(self, z)
-            Decoder of the vae. z has shape [n_sample, batch_size, latent_size]
-            Should return single x_mu with shape [n_sample, batch_size, length, n_voacb]
-    
-    Other methods that should not be implemented:
-        @__init__
-        @forward
-        @sample
-        @latent_rep
-        @interpolate
-        @count_parameters
-    '''
     def _init_enc_dec_funcs(self):
         raise NotImplementedError
         
-    def encoder(self, x, length=None):
+    def encoder(self, x):
         ''' x.shape = [batch_size, seq_length, n_vocab] '''
         raise NotImplementedError
     
-    def decoder(self, z, x_one_hot=None, length=None):
+    def decoder(self, z):
         ''' z.shape = [n_sample, batch_size, latent_size] '''
         raise NotImplementedError
     
@@ -62,53 +42,52 @@ class BaseVAE(nn.Module):
         if torch.cuda.is_available() and device=='cuda':
             self.cuda()
         
-    def forward(self, seq, length=None, n_sample=1):
-        one_hot_seq = self.emb_f(seq)
+    def forward(self, data, args):
+        one_hot_seq = self.emb_f(data['input'])
         
         # Encoder step
-        z_mu, z_std = self.encoder(one_hot_seq, length)
+        z_mu, z_std = self.encoder(one_hot_seq)
         q_dist = D.Independent(D.Normal(z_mu, z_std+1e-6), 1)
-        z = q_dist.rsample((n_sample,))
+        z = q_dist.rsample((args.n_sample,))
         
         # Decoder step
-        x_mu = self.decoder(z, one_hot_seq, length)
+        x_mu = self.decoder(z, one_hot_seq)
         p_dist = D.Categorical(logits=x_mu)
         
-        return p_dist, q_dist, x_mu, z, z_mu, z_std
-    
-    def loss_f(self, target, p_dist, q_dist, beta=1.0, mask=pad_idx):
-        # Calculate elbo
+        # Calculate loss
+        target = data['target']
         logpx = p_dist.log_prob(target) # [N,B,L]
-        logpx[:,target==mask]=0 # mask padding indices
+        logpx[:,target==pad_idx]=0 # mask padding indices
         kl = D.kl_divergence(q_dist, self.prior)
-        iw_elbo = logpx.sum(dim=-1) - beta*kl # [N,B,L] -> [N,B] 
+        iw_elbo = logpx.sum(dim=-1) - data['beta']*kl # [N,B,L] -> [N,B] 
         elbo = iw_elbo.logsumexp(dim=0) - np.log(logpx.shape[0])# [N,B] -> [B]
         
         # Calculate ete
-        ete = (-logpx).sum(dim=-1).mean().exp()
+        ece = (-logpx).mean().exp()
         
         # Calculate accuracy
         logits = p_dist.logits
         preds = logits.mean(dim=0).argmax(dim=-1)
         acc = (target == preds.to(target.dtype))
-        acc = acc[target != mask].float().mean()
+        acc = acc[target != pad_idx].float().mean()
         
         # Calculate perplexity
         probs = p_dist.probs
         logp = p_dist.logits
         perplexity = (-(probs * logp).sum(dim=-1)).exp()
         weights = torch.ones_like(perplexity)
-        weights[:,target==mask] = 0
+        weights[:,target==pad_idx] = 0
         perplexity = (perplexity * weights).sum() / (weights.sum() + 1e-10)
         
+        # Return loss and metrics
         metrics = {'loss': -elbo.mean(),
                    'logpx': logpx.mean(),
                    'kl': kl.mean(),
                    'acc': acc,
-                   'etc': ete,
+                   'ece': ece,
                    'perplexity': perplexity}
         
-        return metrics
+        return metrics['loss'], metrics
     
     def sample(self, N=1, z=None):
         with torch.no_grad():
@@ -156,3 +135,37 @@ class BaseVAE(nn.Module):
         c = sum(p.numel() for p in self.parameters() if p.requires_grad)
         print('Total number of parameters:', c)
     
+    def save_model(self, logdir):
+        torch.save(self.state_dict(), logdir+'/model_params')
+         
+    def load_model(self, path):
+        self.load_state_dict(torch.load(path))
+        
+#%%
+class FullyconnectedVAE(BaseVAE):
+    def _init_enc_dec_funcs(self):
+        enc = nn.Sequential(nn.Linear(n_vocab*self.max_seq_len, 1024),
+                            nn.LeakyReLU(),
+                            nn.Linear(1024, 512),
+                            nn.LeakyReLU())
+        self.enc_mu = nn.Sequential(enc,
+                                    nn.Linear(512, self.latent_size))
+        self.enc_std = nn.Sequential(enc,
+                                     nn.Linear(512, self.latent_size),
+                                     nn.Softplus())
+        self.dec_mu = nn.Sequential(nn.Linear(self.latent_size, 128),
+                                    nn.LeakyReLU(),
+                                    nn.Linear(128, 256),
+                                    nn.LeakyReLU(),
+                                    nn.Linear(256, n_vocab*self.max_seq_len))
+
+    def encoder(self, x):
+        x = x.reshape(x.shape[0], -1)
+        z_mu = self.enc_mu(x)
+        z_std = self.enc_std(x)
+        return z_mu, z_std
+        
+    def decoder(self, z):
+        x_mu = self.dec_mu(z)
+        x_mu = x_mu.reshape(z.shape[0], z.shape[1], self.max_seq_len, n_vocab)
+        return x_mu.log_softmax(dim=-1)

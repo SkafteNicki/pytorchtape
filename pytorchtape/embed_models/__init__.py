@@ -5,4 +5,4 @@ Created on Tue Jul 23 15:32:46 2019
 @author: nsde
 """
 
-from .fullyconnected import FullyconnectedVAE
+from .vae import *

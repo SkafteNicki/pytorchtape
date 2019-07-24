@@ -50,7 +50,7 @@ class TFrecordToTorch(object):
         
         # Get number of batches
         self.dataset = self.tfrecord.batch(self.batch_size)
-        self.n_batch = np.ceil(self.N / self.batch_size)
+        self.n_batch = int(np.ceil(self.N / self.batch_size))
         
     def _deserialize(self, batch) -> list:
         return list(map(self.deserie_func, batch))
@@ -115,10 +115,10 @@ class TFrecordToTorch(object):
 class Dataset(object):
     def __init__(self, batch_size=100, shuffle=True, pad_and_stack=False):
         # Files to read from 
-        files = os.listdir(self.folder)
-        self.train_files = [self.folder + '/' + f for f in files if 'train' in f]
-        self.val_files = [self.folder + '/' + f for f in files if 'valid' in f ]
-        self.test_files = [self.folder + '/' + f for f in files if 
+        self.files = os.listdir(self.folder)
+        self.train_files = [self.folder + '/' + f for f in self.files if 'train' in f]
+        self.val_files = [self.folder + '/' + f for f in self.files if 'valid' in f ]
+        self.test_files = [self.folder + '/' + f for f in self.files if 
                            (f not in self.train_files and f not in self.val_files)]
     
         # Set variables
@@ -128,7 +128,7 @@ class Dataset(object):
         
         # Deserielization function
         self.deserie_func = _deserie_funcs[self.__class__.__name__[:-7].lower()]
-        
+    
     @property
     def train_set(self):
         return TFrecordToTorch(self.train_files, self.deserie_func, self._train_N,
@@ -184,7 +184,13 @@ class PfamDataset(Dataset):
     folder = 'data/pfam'
     _train_N = 32593667
     _val_N = 1715454
-    _test_N = 0
+    _test_N = 44310
+    
+    @property
+    def test_set(self):
+        return TFrecordToTorch([self.folder + '/' + f for f in self.files if 'holdout' in f],
+                               self.deserie_func, self._test_N, 
+                               self.batch_size, False, self.pad_and_stack)
 
 #%%
 if __name__ == '__main__':
