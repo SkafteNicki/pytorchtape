@@ -44,16 +44,16 @@ class BaseVAE(nn.Module):
         if torch.cuda.is_available() and device=='cuda':
             self.cuda()
         
-    def forward(self, data, args):
+    def forward(self, data, n_sample=1):
         one_hot_seq = self.emb_f(data['input'])
         
         # Encoder step
         z_mu, z_std = self.encoder(one_hot_seq)
         q_dist = D.Independent(D.Normal(z_mu, z_std+1e-6), 1)
-        z = q_dist.rsample((args.n_sample,))
+        z = q_dist.rsample((n_sample,))
         
         # Decoder step
-        x_mu = self.decoder(z, one_hot_seq)
+        x_mu = self.decoder(z)
         p_dist = D.Categorical(logits=x_mu)
         
         # Calculate loss

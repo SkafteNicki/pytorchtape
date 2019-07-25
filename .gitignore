@@ -1,5 +1,6 @@
 data/
 __pycache__/
+emb_models/
 .git
 .spyproject
 not_in_use.py

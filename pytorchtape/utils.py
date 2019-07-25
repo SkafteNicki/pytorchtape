@@ -61,9 +61,10 @@ class TrainingLogger(object):
     def get_sum(self, tag, epoch=-1):
         return np.sum(self.stats[epoch][tag])
     
-    def dumb_to_tensorboard(self, summarywriter, global_step=0):
+    def dumb_to_tensorboard(self, summarywriter, global_step=0, filt=''):
         for key, val in self.stats[-1].items():
-            if self._during_batch: # write last element
-                summarywriter.add_scalar(key, val[-1], global_step=global_step)
-            else:
-                summarywriter.add_scalar(key, np.mean(val), global_step=global_step)
+            if filt in key:
+                if self._during_batch: # write last element
+                    summarywriter.add_scalar(key, val[-1], global_step=global_step)
+                else:
+                    summarywriter.add_scalar(key, np.mean(val), global_step=global_step)
