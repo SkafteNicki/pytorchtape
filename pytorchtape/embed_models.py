@@ -15,6 +15,14 @@ from ..data_utils.vocabs import n_vocab, pad_idx
 from ..layers import BatchFlatten, BatchReshape
 
 #%%
+def get_embed_model(name):
+    d = {'fullyconnected': FullyconnectedVAE,
+         'conv': ConvVAE,
+         'hybrid': HybridVAE}
+    assert name in d, '''Model not found, choose between {0}'''.format([k for k in d.keys()])
+    return d[name]
+
+#%%
 class BaseVAE(nn.Module):
     def _init_enc_dec_funcs(self):
         raise NotImplementedError
@@ -203,7 +211,7 @@ class ConvVAE(BaseVAE):
                                     nn.ConvTranspose1d(128, n_vocab, 3, stride=2),
                                     nn.BatchNorm1d(n_vocab),
                                     nn.LeakyReLU())
-    # bs, 
+    
     def encoder(self, x, length=None):
         x = x.permute(0,2,1)
         z_mu = self.enc_mu(x)
@@ -215,3 +223,73 @@ class ConvVAE(BaseVAE):
         x_mu = self.dec_mu(z_r)
         x_mu = x_mu.reshape(z.shape[0], z.shape[1], *x_mu.shape[1:])
         return x_mu.transpose(perm=[0,1,3,2]).log_softmax(dim=-1)
+    
+#%%
+class HybridVAE(ConvVAE):
+    def _init_enc_dec_funcs(self):
+        super()._init_enc_dec_funcs()
+        self.rnn = nn.LSTM(input_size=n_vocab+n_vocab, batch_first=True)
+        
+    def forward(self, data, n_sample=1):
+        one_hot_seq = self.emb_f(data['input'])
+        
+        # Encoder step
+        z_mu, z_std = self.encoder(one_hot_seq)
+        q_dist = D.Independent(D.Normal(z_mu, z_std+1e-6), 1)
+        z = q_dist.rsample((n_sample,))
+        
+        # Decoder step
+        x_mu = self.decoder(z)
+        p_dist = D.Categorical(logits=x_mu)
+        
+        # LSTM step
+        lstm_input = torch.cat((one_hot_seq, x_mu))
+        
+        (x_mu2, _) = self.rnn(lstm_input)
+        p_dist2 = D.Categorical(logits=x_mu2)
+        
+        # Calculate loss
+        self.beta += 1.0/self.warmup_iters if self.training else 0 
+        self.beta = np.minimum(1,self.beta)
+        target = data['target']
+        
+        logpx = p_dist.log_prob(target) # [N,B,L]
+        logpx[:,target==pad_idx]=0 # mask padding indices
+        
+        logpx2 = p_dist2.log_prob(target)
+        logpx2[:, target==pad_idx]=0
+        
+        kl = D.kl_divergence(q_dist, self.prior)
+        
+        iw_elbo = logpx2.sum(dim=-1) - logpx.sum(dim=-1) - self.beta*kl # [N,B,L] -> [N,B] 
+        elbo = iw_elbo.logsumexp(dim=0) - np.log(logpx.shape[0])# [N,B] -> [B]
+        
+        # Calculate ete
+        ece = (-logpx).mean().exp()
+        
+        # Calculate accuracy
+        logits = p_dist.logits
+        preds = logits.mean(dim=0).argmax(dim=-1)
+        acc = (target == preds.to(target.dtype))
+        acc = acc[target != pad_idx].float().mean()
+        
+        # Calculate perplexity
+        probs = p_dist.probs
+        logp = p_dist.logits
+        perplexity = (-(probs * logp).sum(dim=-1)).exp()
+        weights = torch.ones_like(perplexity)
+        weights[:,target==pad_idx] = 0
+        perplexity = (perplexity * weights).sum() / (weights.sum() + 1e-10)
+        
+        # Return loss and metrics
+        metrics = {'loss': -elbo.mean(),
+                   'logpx': logpx.mean(),
+                   'kl': kl.mean(),
+                   'acc': acc,
+                   'ece': ece,
+                   'perplexity': perplexity,
+                   'z_std': z_std.mean()}
+        
+        return metrics['loss'], metrics
+        
+    

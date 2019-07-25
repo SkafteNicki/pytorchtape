@@ -191,6 +191,18 @@ class PfamDataset(Dataset):
         return TFrecordToTorch([self.folder + '/' + f for f in self.files if 'holdout' in f],
                                self.deserie_func, self._test_N, 
                                self.batch_size, False, self.pad_and_stack)
+        
+#%%
+def get_dataset(name):
+    d = {'fluorescence': FluorescenceDataset,
+         'proteinnet': ProteinnetDataset,
+         'remotehomology': RemotehomologyDataset,
+         'secondarystructure': SecondarystructureDataset,
+         'stability': StabilityDataset,
+         'pfam': PfamDataset}
+    assert name in d, '''Unknown dataset, choose from {0}'''.format(
+            [k for k in d.keys()])
+    return d[name]
 
 #%%
 if __name__ == '__main__':

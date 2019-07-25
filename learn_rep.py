@@ -14,7 +14,7 @@ import pickle as pkl
 import os
 
 from pytorchtape.datasets import PfamDataset
-from pytorchtape.embed_models import get_model
+from pytorchtape.embed_models import get_embed_model
 from pytorchtape.trainers import RepLearner
 
 #%%
@@ -56,10 +56,10 @@ if __name__ == "__main__":
     test_set = dataset.test_set
 
     # Initialize model    
-    model = get_model(args.model)(max_seq_len = args.max_seq_len,
-                                  warmup_iters = args.warmup,
-                                  latent_size = args.latent_size,
-                                  device = device)
+    model = get_embed_model(args.model)(max_seq_len = args.max_seq_len,
+                                          warmup_iters = args.warmup,
+                                          latent_size = args.latent_size,
+                                          device = device)
     
     # Initialize trainer
     trainer = RepLearner(model, args.max_seq_len, args.logdir, device=device)
