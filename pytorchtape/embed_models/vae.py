@@ -12,6 +12,7 @@ from torch import distributions as D
 import numpy as np
 
 from ..data_utils.vocabs import n_vocab, pad_idx
+from ..layers import BatchFlatten, BatchReshape
 
 #%%
 class BaseVAE(nn.Module):
@@ -174,3 +175,43 @@ class FullyconnectedVAE(BaseVAE):
         x_mu = self.dec_mu(z)
         x_mu = x_mu.reshape(z.shape[0], z.shape[1], self.max_seq_len, n_vocab)
         return x_mu.log_softmax(dim=-1)
+    
+#%%        
+class ConvVAE(BaseVAE):
+    def _init_enc_dec_funcs(self):
+        enc = nn.Sequential(nn.Conv1d(n_vocab, 128, 3, stride=2),
+                            nn.BatchNorm1d(128),
+                            nn.LeakyReLU(),
+                            nn.Conv1d(128, 64, 3, stride=2),
+                            nn.BatchNorm1d(64),
+                            nn.LeakyReLU())
+        out_size = enc(torch.randint(0,n_vocab,(10,n_vocab,self.max_seq_length)).float()).shape
+
+        self.enc_mu = nn.Sequential(enc,
+                                    BatchFlatten(),
+                                    nn.Linear(out_size[1]*out_size[2], self.latent_size))
+        self.enc_std = nn.Sequential(enc,
+                                     BatchFlatten(),
+                                     nn.Linear(out_size[1]*out_size[2], self.latent_size),
+                                     nn.Softplus())
+        
+        self.dec_mu = nn.Sequential(nn.Linear(self.latent_size, out_size[1]*out_size[2]),
+                                    BatchReshape((out_size[1], out_size[2])),
+                                    nn.ConvTranspose1d(64, 128, 3, stride=2),
+                                    nn.BatchNorm1d(128),
+                                    nn.LeakyReLU(),
+                                    nn.ConvTranspose1d(128, n_vocab, 3, stride=2),
+                                    nn.BatchNorm1d(n_vocab),
+                                    nn.LeakyReLU())
+    # bs, 
+    def encoder(self, x, length=None):
+        x = x.permute(0,2,1)
+        z_mu = self.enc_mu(x)
+        z_std = self.enc_std(x)
+        return z_mu, z_std
+    
+    def decoder(self, z, x_one_hot=None, length=None):
+        z_r = z.reshape(-1,*z.shape[2:]) # merge n_sample and batch dim
+        x_mu = self.dec_mu(z_r)
+        x_mu = x_mu.reshape(z.shape[0], z.shape[1], *x_mu.shape[1:])
+        return x_mu.transpose(perm=[0,1,3,2]).log_softmax(dim=-1)

@@ -79,6 +79,6 @@ if __name__ == "__main__":
     model.save(args.logdir)
     
     # Finally evaluate on test set
-    metrics = trainer.evaluate
+    metrics = trainer.evaluate(test_set)
     with open(args.logdir+'/test_res.pkl', 'wb') as f:
         pkl.dump(metrics, f)
