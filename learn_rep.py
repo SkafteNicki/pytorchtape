@@ -8,8 +8,6 @@ Created on Tue Jul 23 15:24:06 2019
 #%%
 import argparse
 import torch
-import numpy as np
-from tqdm import tqdm
 import pickle as pkl
 import os
 
@@ -42,10 +40,15 @@ def argparser():
 
 #%%
 if __name__ == "__main__":
+    # Get arguments
     args = argparser()
+    
+    # Crete model dir
     if not os.path.exists('emb_models'):
         os.mkdir('emb_models')
     args.logdir = 'emb_models/' + args.logdir 
+    
+    # Set device
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
     
     # Initialize dataset
@@ -57,9 +60,9 @@ if __name__ == "__main__":
 
     # Initialize model    
     model = get_embed_model(args.model)(max_seq_len = args.max_seq_len,
-                                          warmup_iters = args.warmup,
-                                          latent_size = args.latent_size,
-                                          device = device)
+                                        warmup_iters = args.warmup,
+                                        latent_size = args.latent_size,
+                                        device = device)
     
     # Initialize trainer
     trainer = RepLearner(model, args.max_seq_len, args.logdir, device=device)
@@ -71,10 +74,6 @@ if __name__ == "__main__":
                         learning_rate = args.lr,
                         data_pr_epoch = args.n_data)
     
-    # Save training stats
-    with open(args.logdir+'/stats.pkl', 'wb') as f:
-        pkl.dump(stats, f)
-        
     # Save model
     model.save(args.logdir)
     
@@ -82,3 +81,13 @@ if __name__ == "__main__":
     metrics = trainer.evaluate(test_set)
     with open(args.logdir+'/test_res.pkl', 'wb') as f:
         pkl.dump(metrics, f)
+    
+    # Save training stats
+    with open(args.logdir+'/stats.pkl', 'wb') as f:
+        pkl.dump(stats, f)
+    
+    # Save args for later inspection    
+    with open(args.logdir+'/args.pkl', 'wb') as f:
+        pkl.dump(args, f)
+    
+    

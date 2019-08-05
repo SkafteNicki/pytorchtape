@@ -143,10 +143,10 @@ def deserialize_pfam_sequence(example):
         sequence_features=features
     )
 
-    protein_length = tf.to_int32(context['protein_length'][0])
+    protein_length = tf.cast(context['protein_length'][0], tf.int32)
     clan = tf.cast(context['clan'][0], tf.int32)
     family = tf.cast(context['family'][0], tf.int32)
-    primary = tf.to_int32(features['primary'][:, 0])
+    primary = tf.cast(features['primary'][:, 0], tf.int32)
 
     return {'primary': primary,
             'protein_length': protein_length,

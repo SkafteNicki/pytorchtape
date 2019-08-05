@@ -11,8 +11,8 @@ from torch.nn import functional as F
 from torch import distributions as D
 import numpy as np
 
-from ..data_utils.vocabs import n_vocab, pad_idx
-from ..layers import BatchFlatten, BatchReshape
+from .data_utils.vocabs import n_vocab, pad_idx
+from .layers import BatchFlatten, BatchReshape
 
 #%%
 def get_embed_model(name):
@@ -149,10 +149,10 @@ class BaseVAE(nn.Module):
         c = sum(p.numel() for p in self.parameters() if p.requires_grad)
         print('Total number of parameters:', c)
     
-    def save_model(self, logdir):
+    def save(self, logdir):
         torch.save(self.state_dict(), logdir+'/model_params')
          
-    def load_model(self, path):
+    def load(self, path):
         self.load_state_dict(torch.load(path))
         
 #%%
