@@ -158,20 +158,20 @@ class BaseVAE(nn.Module):
 #%%
 class FullyconnectedVAE(BaseVAE):
     def _init_enc_dec_funcs(self):
-        enc = nn.Sequential(nn.Linear(n_vocab*self.max_seq_len, 1024),
-                            nn.LeakyReLU(),
-                            nn.Linear(1024, 512),
-                            nn.LeakyReLU())
+        enc = nn.Sequential(nn.Linear(n_vocab*self.max_seq_len, 512),
+                            nn.LeakyReLU(inplace=True),
+                            nn.Linear(512, 256),
+                            nn.LeakyReLU(inplace=True))
         self.enc_mu = nn.Sequential(enc,
-                                    nn.Linear(512, self.latent_size))
+                                    nn.Linear(256, self.latent_size))
         self.enc_std = nn.Sequential(enc,
-                                     nn.Linear(512, self.latent_size),
+                                     nn.Linear(256, self.latent_size),
                                      nn.Softplus())
-        self.dec_mu = nn.Sequential(nn.Linear(self.latent_size, 128),
-                                    nn.LeakyReLU(),
-                                    nn.Linear(128, 256),
-                                    nn.LeakyReLU(),
-                                    nn.Linear(256, n_vocab*self.max_seq_len))
+        self.dec_mu = nn.Sequential(nn.Linear(self.latent_size, 256),
+                                    nn.LeakyReLU(inplace=True),
+                                    nn.Linear(256, 512),
+                                    nn.LeakyReLU(inplace=True),
+                                    nn.Linear(512, n_vocab*self.max_seq_len))
 
     def encoder(self, x):
         x = x.reshape(x.shape[0], -1)

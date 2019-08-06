@@ -64,7 +64,10 @@ class RepLearner(object):
                 it = i*train_set.n_batch+j # global index
                 
                 # Prepare data
-                data = self.prepare_batch(batch)
+                try:
+                    data = self.prepare_batch(batch)
+                except:
+                    continue
                 
                 # Forward pass
                 loss, metrics = self.model(data, n_sample)
@@ -113,7 +116,10 @@ class RepLearner(object):
         accumulate_metrics = dict()
         progressBar = tqdm(total=val_set.N, desc='Validation', unit='samples')
         for j, batch in enumerate(val_set):
-            data = self.prepare_batch(batch)
+            try:
+                data = self.prepare_batch(batch)
+            except:
+                continue
             loss, metrics = self.model(data, 1)
                         
             for key, val in metrics.items():
@@ -161,7 +167,12 @@ class TaskLearner(object):
             target = batch['stability_score']
             target = [t for t,l in zip(target,batch['protein_length']) if l <= self.max_seq_len]
             target = torch.tensor(np.stack(target), device=self.device)
-        
+        if 'log_fluorescence' in batch.keys():
+            target = batch['log_fluorescence']
+            target = [t for t,l in zip(target,batch['protein_length']) if l <= self.max_seq_len]
+            target = torch.tensor(np.stack(target), device=self.device)
+
+
         return {'input': seq,
                 'target': target,
                 'length': length}

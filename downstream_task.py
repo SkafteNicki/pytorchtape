@@ -58,3 +58,14 @@ if __name__ == '__main__':
     stats = trainer.fit(dataset.train_set,
                         n_epochs = args.n_epochs,
                         learning_rate = args.lr)
+    # Evaluate
+    train_res = trainer.evaluate(dataset.train_set)
+    val_res = trainer.evaluate(dataset.val_set)
+    test_res = trainer.evaluate(dataset.test_set)
+    print(train_res)
+    print(val_res)
+    print(test_res)
+    with open(args.logdir + '/results.pkl', 'wb') as f:
+        pkl.dumb(f, train_res)
+        pkl.dumb(f, val_res)
+        pkl.dumb(f, test_res)
