@@ -128,16 +128,16 @@ def serialize_pfam_sequence(sequence: str,
 
 def deserialize_pfam_sequence(example):
     context = {
-        'protein_length': tf.FixedLenFeature([1], tf.int64),
-        'clan': tf.FixedLenFeature([1], tf.int64),
-        'family': tf.FixedLenFeature([1], tf.int64)
+        'protein_length': tf.io.FixedLenFeature([1], tf.int64),
+        'clan': tf.io.FixedLenFeature([1], tf.int64),
+        'family': tf.io.FixedLenFeature([1], tf.int64)
     }
 
     features = {
-        'primary': tf.FixedLenSequenceFeature([1], tf.int64),
+        'primary': tf.io.FixedLenSequenceFeature([1], tf.int64),
     }
 
-    context, features = tf.parse_single_sequence_example(
+    context, features = tf.io.parse_single_sequence_example(
         example,
         context_features=context,
         sequence_features=features

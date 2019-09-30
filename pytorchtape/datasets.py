@@ -6,7 +6,8 @@ Created on Tue Jul 16 12:53:02 2019
 """
 
 import tensorflow as tf
-tf.enable_eager_execution()
+#gpu_options = tf.GPUOptions(per_process_gpu_memory_fraction=0.1)
+#tf.enable_eager_execution(config=tf.ConfigProto(gpu_options=gpu_options))
 
 from .data_utils.fluorescence_protein_serializer import deserialize_fluorescence_sequence as _deserialize_fluorescence_sequence
 from .data_utils.proteinnet_serializer import deserialize_proteinnet_sequence as _deserialize_proteinnet_sequence

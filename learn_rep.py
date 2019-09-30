@@ -53,7 +53,7 @@ if __name__ == "__main__":
     
     # Initialize dataset
     dataset = PfamDataset(batch_size = args.batch_size,
-                          shuffle = True)
+                          shuffle = False)
     train_set = dataset.train_set
     val_set = dataset.val_set
     test_set = dataset.test_set

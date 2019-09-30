@@ -11,7 +11,7 @@ import torch
 import numpy as np
 from tqdm import tqdm
 from torch.utils.tensorboard import SummaryWriter
-
+from itertools import chain
 from .utils import TrainingLogger
 
 
@@ -180,7 +180,7 @@ class TaskLearner(object):
     def fit(self, train_set, n_epochs=1, learning_rate = 1e-2, val_set = None,
             val_epoch=1):
         # Optimizer
-        optimizer = torch.optim.Adam(self.task_model.parameters(), lr=learning_rate)
+        optimizer = torch.optim.Adam(chain(self.task_model.parameters(), self.embed_model.parameters()), lr=learning_rate)
         
         # Log of training statistics
         logger = TrainingLogger()
