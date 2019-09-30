@@ -6,7 +6,10 @@ Created on Tue Jul 16 12:53:02 2019
 """
 
 import tensorflow as tf
-tf.enable_eager_execution()
+try:
+    tf.enable_eager_execution() # if tf-1
+except:
+    pass # else tf-2 do nothing
 
 from .data_utils.fluorescence_protein_serializer import deserialize_fluorescence_sequence as _deserialize_fluorescence_sequence
 from .data_utils.proteinnet_serializer import deserialize_proteinnet_sequence as _deserialize_proteinnet_sequence
@@ -14,10 +17,11 @@ from .data_utils.remote_homology_serializer import deserialize_remote_homology_s
 from .data_utils.secondary_structure_protein_serializer import deserialize_secondary_structure as _deserialize_secondary_structure
 from .data_utils.stability_serializer import deserialize_stability_sequence as _deserialize_stability_sequence
 from .data_utils.pfam_protein_serializer import deserialize_pfam_sequence as _deserialize_pfam_sequence
-
+from .data_utils.vocabs import PFAM_VOCAB
 import numpy as np
 import os
 import torch
+from Bio import SeqIO
 
 #%%
 _deserie_funcs = {'fluorescence':        _deserialize_fluorescence_sequence,
@@ -191,7 +195,108 @@ class PfamDataset(Dataset):
         return TFrecordToTorch([self.folder + '/' + f for f in self.files if 'holdout' in f],
                                self.deserie_func, self._test_N, 
                                self.batch_size, False, self.pad_and_stack)
+
+#%%
+class subset(object):
+    def __init__(self, bs, sh, ids, seq, lengths, labels):
+        self.bs = bs
+        self.sh = sh
+        self.ids = ids
+        self.seq = seq
+        self.lengths = lengths
+        self.labels = labels
         
+        self.N = len(self.ids)
+        self.nb = int(np.ceil(self.N / self.bs))
+    
+    def __len__(self):
+        return self.N
+    
+    def __iter__(self):
+        np_dict = {}
+        for i in range(self.nb):
+            np_dict['id'] = self.ids[i*self.bs:(i+1)*self.bs]
+            np_dict['primary'] = self.seq[i*self.bs:(i+1)*self.bs]
+            np_dict['protein_length'] = self.lengths[i*self.bs:(i+1)*self.bs]
+            np_dict['secondary_structure'] = self.labels[i*self.bs:(i+1)*self.bs]
+            yield np_dict
+        if self.sh: # shuffle
+            perm = np.random.permutation(self.N)
+            temp1, temp2, temp3, temp4 = [ ], [ ], [ ], [ ]
+            for i in range(self.N):
+                temp1.append(self.ids[perm[i]])
+                temp2.append(self.seq[perm[i]])
+                temp3.append(self.lengths[perm[i]])
+                temp4.append(self.labels[perm[i]])
+            self.ids = temp1
+            self.seq = temp2
+            self.lengths = temp3
+            self.labels = temp4
+
+#%%
+class ScopeDataset(object):
+    def __init__(self, batch_size=100, shuffle=True, pad_and_stack=False):
+        self.batch_size = batch_size
+        self.shuffle = shuffle
+        
+        # Load sequences
+        ids, lab, seq, lengths = [ ], [ ], [ ], [ ]
+        fasta_sequences = SeqIO.parse(open('data/scope/astral-scopedom-seqres-gd-sel-gs-bib-95-2.07.fa'),'fasta')
+        for fasta in fasta_sequences:
+            ids.append(np.array(fasta.id))
+            lab.append(fasta.description[8])
+            seq.append(np.array([PFAM_VOCAB[s] for s in str(fasta.seq).upper()]))
+            lengths.append(np.array(len(seq[-1])))
+        
+        N = len(ids)
+        self._train_N = int(N*0.8) # 80% train
+        self._val_N = int(N*0.1) # 10% val
+        self._test_N = N - self._train_N - self._val_N # 10% test
+        
+        # Convert labels
+        label_conv = {'a': 0, 'b': 1, 'c': 2, 'd': 3, 'e': 4, 'f': 5, 'g': 6}
+        temp = [ ]
+        for l in lab:
+            temp.append(np.array(label_conv[l]))
+        lab = temp
+        
+        perm = np.random.permutation(N)
+        self.train_id, self.val_id, self.test_id = [ ], [ ], [ ]
+        self.train_seq, self.val_seq, self.test_seq = [ ], [ ], [ ]
+        self.train_lengths, self.val_lengths, self.test_lengths = [ ], [ ], [ ]        
+        self.train_labels, self.val_labels, self.test_labels = [ ], [ ], [ ]
+        for i in range(N):
+            if i < self._train_N:
+                self.train_id.append(ids[perm[i]])
+                self.train_seq.append(seq[perm[i]])
+                self.train_lengths.append(lengths[perm[i]])
+                self.train_labels.append(lab[perm[i]])
+            elif self._train_N <= i < self._train_N + self._val_N:
+                self.val_id.append(ids[perm[i]])
+                self.val_seq.append(seq[perm[i]])
+                self.val_lengths.append(lengths[perm[i]])
+                self.val_labels.append(lab[perm[i]])
+            else:
+                self.test_id.append(ids[perm[i]])
+                self.test_seq.append(seq[perm[i]])
+                self.test_lengths.append(lengths[perm[i]])
+                self.test_labels.append(lab[perm[i]])
+    
+    @property
+    def train_set(self):
+        return subset(self.batch_size, self.shuffle, self.train_id, self.train_seq, 
+                      self.train_lengths, self.train_labels)
+                
+    @property
+    def val_set(self):
+        return subset(self.batch_size, False, self.train_id, self.train_seq, 
+                      self.train_lengths, self.train_labels)
+    
+    @property
+    def test_set(self):
+        return subset(self.batch_size, False, self.train_id, self.train_seq, 
+                      self.train_lengths, self.train_labels)
+
 #%%
 def get_dataset(name):
     d = {'fluorescence': FluorescenceDataset,
@@ -199,23 +304,24 @@ def get_dataset(name):
          'remotehomology': RemotehomologyDataset,
          'secondarystructure': SecondarystructureDataset,
          'stability': StabilityDataset,
-         'pfam': PfamDataset}
+         'pfam': PfamDataset,
+         'scope': ScopeDataset}
     assert name in d, '''Unknown dataset, choose from {0}'''.format(
             [k for k in d.keys()])
     return d[name]
 
 #%%
 if __name__ == '__main__':
-    for classe in [#FluorescenceDataset,
+    for classe in [FluorescenceDataset,
                    #ProteinnetDataset,
                    #RemotehomologyDataset,
                    #SecondarystructureDataset,
                    #StabilityDataset,
-                   PfamDataset
+                   #PfamDataset
                    ]:
         print(classe)
         c = classe()
         #s1 = c.train_set
         #s2 = c.val_set
-        s3 = c.test_set
+        #s3 = c.test_set
 
