@@ -23,6 +23,60 @@ def get_embed_model(name):
     return d[name]
 
 #%%
+class Lstm(nn.Module):
+    def __init__(self, latent_size, max_seq_len, warmup_iters, device='cpu'):
+        self.max_seq_len = max_seq_len
+        self.latent_size = latent_size
+        self.device = torch.device(device)
+        self.emb_f = nn.Embedding(n_vocab, 128).float()
+        self.rnn = nn.LSTM(128, self.latent_size, num_layers=1, batch_first=True)
+        self.pred = nn.Sequential(  nn.BatchNorm1D(),
+                                    nn.Linear(128, 256),
+                                    nn.ReLU(),
+                                    nn.Linear(256, n_vocab))
+    def forward(self, data, *args):
+        embedding = self.emb_f(data['input'])
+                
+        rnn_output = self.rnn(embedding)
+        output = self.pred(rnn_output)
+        
+        p_dist = D.Categorical(logits=output)
+        target = data['target']
+        logpx = p_dist.log_prob(target)
+        logpx[:,target==pad_idx]=0
+        
+        # Calculate ece
+        ece = (-logpx).mean().exp()
+        
+        # Calcualte accuracy
+        logits = p_dist.logits
+        preds = logits.argmax(dim=-1)
+        acc = (target == preds.to(target.dtype))
+        acc[target != pad_idx].float().mean()
+        
+        # Calculate perplexity
+        probs = p_dist.probs
+        logp = p_dist.logits
+        perplexity = (-(probs * logp).sum(dim=-1)).exp()
+        weights = torch.ones_like(perplexity)
+        weights[:, target==pad_idx] = 0
+        perplexity = (perplexity * weights).sum() / (weights.sum() + 1e-10)
+        
+        # Return loss and metrics
+        metrics = {'loss': -logpx.mean(),
+                   'logpx': logpx.mean(),
+                   'acc': acc,
+                   'ece': ece,
+                   'perplexity': perplexity}
+
+        return metrics['loss'], metrics
+    
+    def embedding(self, x):
+        with torch.no_grad():
+            x_emb = self.emb_f(x)
+            return self.rnn(x_emb)[0].mean(dim=1) # mean over sequence length
+
+#%%
 class BaseVAE(nn.Module):
     def _init_enc_dec_funcs(self):
         raise NotImplementedError
