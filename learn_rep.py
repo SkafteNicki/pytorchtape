@@ -69,7 +69,7 @@ if __name__ == "__main__":
     
     # Fit
     stats = trainer.fit(train_set,
-                        val_set = val_set,
+                        #val_set = val_set,
                         n_epochs = args.n_epochs,
                         learning_rate = args.lr,
                         data_pr_epoch = args.n_data)

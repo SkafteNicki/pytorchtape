@@ -18,32 +18,50 @@ from .layers import BatchFlatten, BatchReshape
 def get_embed_model(name):
     d = {'fullyconnected': FullyconnectedVAE,
          'conv': ConvVAE,
-         'hybrid': HybridVAE}
+         'hybrid': HybridVAE,
+         'lstm': Lstm}
     assert name in d, '''Model not found, choose between {0}'''.format([k for k in d.keys()])
     return d[name]
 
 #%%
+class Permute(nn.Module):
+    def __init__(self, dims):
+        super().__init__()
+        self.dims = dims
+    
+    def forward(self, x):
+        return x.permute(*self.dims)
+
+#%%
 class Lstm(nn.Module):
     def __init__(self, latent_size, max_seq_len, warmup_iters, device='cpu'):
+        super().__init__()
         self.max_seq_len = max_seq_len
         self.latent_size = latent_size
         self.device = torch.device(device)
         self.emb_f = nn.Embedding(n_vocab, 128).float()
         self.rnn = nn.LSTM(128, self.latent_size, num_layers=1, batch_first=True)
-        self.pred = nn.Sequential(  nn.BatchNorm1D(),
-                                    nn.Linear(128, 256),
+        self.pred = nn.Sequential(  Permute((0,2,1)),
+                                    nn.BatchNorm1d(self.latent_size),
+                                    Permute((0,2,1)),
+                                    nn.Linear(self.latent_size, 256),
                                     nn.ReLU(),
                                     nn.Linear(256, n_vocab))
+        
+        # Move to gpu if device=='cuda'
+        if torch.cuda.is_available() and device=='cuda':
+            self.cuda()
+        
     def forward(self, data, *args):
-        embedding = self.emb_f(data['input'])
+        embedding = self.emb_f(data['input'].long())
                 
         rnn_output = self.rnn(embedding)
-        output = self.pred(rnn_output)
+        output = self.pred(rnn_output[0])[:,:-1,:]
         
         p_dist = D.Categorical(logits=output)
-        target = data['target']
+        target = data['target'][:,1:]
         logpx = p_dist.log_prob(target)
-        logpx[:,target==pad_idx]=0
+        logpx[target==pad_idx]=0
         
         # Calculate ece
         ece = (-logpx).mean().exp()
@@ -52,14 +70,14 @@ class Lstm(nn.Module):
         logits = p_dist.logits
         preds = logits.argmax(dim=-1)
         acc = (target == preds.to(target.dtype))
-        acc[target != pad_idx].float().mean()
-        
+        acc = acc[target != pad_idx].float().mean()
+
         # Calculate perplexity
         probs = p_dist.probs
         logp = p_dist.logits
         perplexity = (-(probs * logp).sum(dim=-1)).exp()
         weights = torch.ones_like(perplexity)
-        weights[:, target==pad_idx] = 0
+        weights[target==pad_idx] = 0
         perplexity = (perplexity * weights).sum() / (weights.sum() + 1e-10)
         
         # Return loss and metrics

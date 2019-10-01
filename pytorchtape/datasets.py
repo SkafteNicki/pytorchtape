@@ -6,15 +6,10 @@ Created on Tue Jul 16 12:53:02 2019
 """
 
 import tensorflow as tf
-<<<<<<< HEAD
-#gpu_options = tf.GPUOptions(per_process_gpu_memory_fraction=0.1)
-#tf.enable_eager_execution(config=tf.ConfigProto(gpu_options=gpu_options))
-=======
 try:
     tf.enable_eager_execution() # if tf-1
 except:
     pass # else tf-2 do nothing
->>>>>>> 0a9c7445756288db64d06d15a0f92674569d97b7
 
 from .data_utils.fluorescence_protein_serializer import deserialize_fluorescence_sequence as _deserialize_fluorescence_sequence
 from .data_utils.proteinnet_serializer import deserialize_proteinnet_sequence as _deserialize_proteinnet_sequence
