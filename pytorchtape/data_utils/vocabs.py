@@ -32,6 +32,7 @@ PFAM_VOCAB = {
 # Special tokens (my own)
 n_vocab = len(PFAM_VOCAB) + 2
 pad_idx = PFAM_VOCAB['<PAD>']
+mask_idx = PFAM_VOCAB['<MASK>']
 start_idx = 29
 stop_idx = 30
 

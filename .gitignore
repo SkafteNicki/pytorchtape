@@ -4,4 +4,5 @@ emb_models/
 .git
 .spyproject
 not_in_use.py
+old_code/
 res*

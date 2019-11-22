@@ -11,13 +11,13 @@ try:
 except:
     pass # else tf-2 do nothing
 
-from .data_utils.fluorescence_protein_serializer import deserialize_fluorescence_sequence as _deserialize_fluorescence_sequence
-from .data_utils.proteinnet_serializer import deserialize_proteinnet_sequence as _deserialize_proteinnet_sequence
-from .data_utils.remote_homology_serializer import deserialize_remote_homology_sequence as _deserialize_remote_homology_sequence
-from .data_utils.secondary_structure_protein_serializer import deserialize_secondary_structure as _deserialize_secondary_structure
-from .data_utils.stability_serializer import deserialize_stability_sequence as _deserialize_stability_sequence
-from .data_utils.pfam_protein_serializer import deserialize_pfam_sequence as _deserialize_pfam_sequence
-from .data_utils.vocabs import PFAM_VOCAB as vocab
+from data_utils.fluorescence_protein_serializer import deserialize_fluorescence_sequence as _deserialize_fluorescence_sequence
+from data_utils.proteinnet_serializer import deserialize_proteinnet_sequence as _deserialize_proteinnet_sequence
+from data_utils.remote_homology_serializer import deserialize_remote_homology_sequence as _deserialize_remote_homology_sequence
+from data_utils.secondary_structure_protein_serializer import deserialize_secondary_structure as _deserialize_secondary_structure
+from data_utils.stability_serializer import deserialize_stability_sequence as _deserialize_stability_sequence
+from data_utils.pfam_protein_serializer import deserialize_pfam_sequence as _deserialize_pfam_sequence
+from data_utils.vocabs import PFAM_VOCAB as vocab
 import numpy as np
 import os
 import torch
@@ -90,9 +90,7 @@ class TFrecordToTorch(IterableDataset):
 class Dataset(object):
     def __init__(self, batch_size=100, shuffle=True, max_length=500):
         # Files to read from 
-        self.folder = os.path.dirname(os.path.abspath(__file__)) + '/' + self.folder
         self.files = os.listdir(self.folder)
-        
         self.train_files = [self.folder + '/' + f for f in self.files if 'train' in f]
         self.val_files = [self.folder + '/' + f for f in self.files if 'valid' in f ]
         self.test_files = [self.folder + '/' + f for f in self.files if 
