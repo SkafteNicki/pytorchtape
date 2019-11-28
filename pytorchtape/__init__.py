@@ -6,3 +6,5 @@ Created on Tue Jul 23 09:36:16 2019
 """
 
 from .datasets import get_dataset
+from .tasks import get_task
+from .datasets import vocab

@@ -18,6 +18,7 @@ from .data_utils.secondary_structure_protein_serializer import deserialize_secon
 from .data_utils.stability_serializer import deserialize_stability_sequence as _deserialize_stability_sequence
 from .data_utils.pfam_protein_serializer import deserialize_pfam_sequence as _deserialize_pfam_sequence
 from .data_utils.vocabs import PFAM_VOCAB as vocab
+from .utils import cudaDict
 import numpy as np
 import os
 import torch
@@ -73,7 +74,7 @@ class TFrecordToTorch(IterableDataset):
             self.dataset = self.tfrecord.shuffle(self.N).batch(self.batch_size)
             
     def _collate_fn(self, batch):
-        out = {}
+        out = cudaDict()
         for key in batch[0].keys():                     
             try:
                 out[key] = default_collate(

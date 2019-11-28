@@ -5,33 +5,50 @@ Created on Fri Nov 22 14:49:02 2019
 @author: nsde
 """
 
-from pytorchtape import get_dataset
+from pytorchtape import get_task, vocab
+from torch import nn
+
+class args:
+    max_length = 500
+    batch_size = 10
+
+class Reshape(nn.Module):
+    def __init__(self, *sizes):
+        super().__init__()
+        self.sizes = sizes
+        
+    def forward(self, x):
+        return x.view(-1, *self.sizes)
+
+class Model(nn.Module):
+    # Stupid autoencoder, just for test purpose
+    def __init__(self):
+        super().__init__()
+        self.latent_size = 256 # MUST BE DEFINED
+        self.encoder = nn.Sequential(nn.Embedding(len(vocab), 30),
+                                     nn.Flatten(),
+                                     nn.Linear(args.max_length * 30, 500),
+                                     nn.ReLU(),
+                                     nn.Linear(500, 256))
+                                     
+        self.decoder = nn.Sequential(nn.Linear(256, 500),
+                                     nn.ReLU(),
+                                     nn.Linear(500, args.max_length * len(vocab)),
+                                     Reshape(args.max_length, len(vocab)))
+        
+    def forward(self, seq):
+        latent = self.encoder(seq.long())
+        return self.decoder(latent)
+    
+    def embed(self, seq): # MUST BE DEFINED
+        return self.encoder(seq.long())
 
 if __name__ == '__main__':
-    # Initialize a dataset
-    dataset = get_dataset('pfam')(
-            batch_size = 10, shuffle = True, max_length = 500)
+    model = Model().cuda()
     
-    # Get train, val and test splits
-    train = dataset.train_set 
-    val = dataset.val_set
-    test = dataset.test_set
+    task = get_task('stability')(model, fix_embedding=True).cuda()
+    train, val, test = task.get_data()
     
-    # We can only go through each subset in a iterative way, either as
     for batch in train:
-        print(batch)
+        loss, metrics = task.loss_func(batch.cuda())
         break
-    
-    # or
-    iterator = iter(train)
-    for i in range(train.n_batch):
-        batch = next(iterator)
-        print(batch)
-        break
-    
-    # Batch is always a dict (regardless of dataset), and always has these two fields:
-    # * batch['primary'] <- padded amino acid sequences
-    # * batch['protein_length'] <- length of each sequence
-    # Additionally, each dataset comes with its own specific keys.
-    
-    
