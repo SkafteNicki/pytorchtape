@@ -46,7 +46,7 @@ class Model(nn.Module):
 if __name__ == '__main__':
     model = Model().cuda()
     
-    task = get_task('stability')(model, fix_embedding=True).cuda()
+    task = get_task('remotehomology')(model, fix_embedding=True).cuda()
     train, val, test = task.get_data()
     
     for batch in train:

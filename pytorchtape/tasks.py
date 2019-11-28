@@ -9,6 +9,8 @@ from torch import nn
 from .datasets import get_dataset
 from scipy.stats import spearmanr
 
+from .utils import accuracy_topk
+
 #%%
 class Task(nn.Module):
     def __init__(self, embed_model, fix_embedding=True):
@@ -57,7 +59,6 @@ class StabilityTask(Task):
         dataset = get_dataset('stability')(batch_size=batch_size)
         return dataset.train_set, dataset.val_set, dataset.test_set
     
-    
 #%%
 class FluorescenceTask(Task):
     def __init__(self, embed_model, fix_embedding=True):
@@ -73,25 +74,51 @@ class FluorescenceTask(Task):
         
     def loss_func(self, batch):
         prediction = self(batch)
-        target = batch['stability_score']
+        target = batch['log_fluorescence']
         loss = self.loss(prediction, target)
         mae = (prediction-target).abs().mean()
-        corr, _ = spearmanr(prediction.numpy(), target.numpy())
-        metrics = {'MSE': loss, 'MAE': mae, 'S_Corr': corr}
+        corr, _ = spearmanr(prediction.detach().cpu().numpy(), target.cpu().numpy())
+        metrics = {'MSE': loss.item(), 'MAE': mae.item(), 'S_Corr': corr}
         return loss, metrics
     
     def get_data(self, batch_size=10, max_length=500):
         dataset = get_dataset('fluorescence')(batch_size=batch_size)
         return dataset.train_set, dataset.val_set, dataset.test_set
+
+#%%
+class RemotehomologyTask(Task):
+    def __init__(self, embed_model, fix_embedding=True):
+        super().__init__(embed_model, fix_embedding)
+            
+        self.predictor = nn.Sequential(nn.LayerNorm(self.latent_size),
+                                       nn.Linear(self.latent_size, 500),
+                                       nn.ReLU(),
+                                       nn.Dropout(0.5),
+                                       nn.Linear(500, 1195))
+        
+        self.loss = nn.CrossEntropyLoss()
+        
+    def loss_func(self, batch):
+        prediction = self(batch)
+        target = batch['fold_label'].long()
+        loss = self.loss(prediction, target)
+        acc = (prediction.argmax(dim=-1) == target).float().mean()
+        top5, top10 = accuracy_topk(prediction, target, topk=(5,10))
+        metrics = {'CrossEntro': loss, 'Acc': acc.item(), 
+                   'Top5Acc': top5.item(), 'Top10Acc': top10.item()}
+        return loss, metrics
     
+    def get_data(self, batch_size=10, max_length=500):
+        dataset = get_dataset('remotehomology')(batch_size=batch_size)
+        return dataset.train_set, dataset.val_set, dataset.test_set
+
 #%%
 def get_task(name):
     d = {'fluorescence': FluorescenceTask,
          #'proteinnet': ProteinnetDataset,
-         #'remotehomology': RemotehomologyDataset,
+         'remotehomology': RemotehomologyTask,
          #'secondarystructure': SecondarystructureDataset,
          'stability': StabilityTask,
-         #'pfam': PfamDataset
          }
     assert name in d, '''Unknown task, choose from {0}'''.format(
             [k for k in d.keys()])
